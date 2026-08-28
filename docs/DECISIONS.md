@@ -13,6 +13,11 @@
 - 이유: 실시간 speech-to-speech에 필요한 (1) 16kHz raw PCM 스트리밍 캡처, (2) 24kHz PCM 무갭 재생(Web Audio 방식 AudioBufferQueueSourceNode), (3) barge-in용 즉시 정지, (4) iOS 무음모드 스피커 재생 + 백그라운드 오디오 세션을 한 패키지가 모두 제공. 경쟁 캡처 라이브러리들은 방치/아카이브 상태. expo-av/expo-audio는 raw PCM 청크 스트리밍 API가 없음.
 - 리스크: pre-1.0(v0.13.x). 무갭 스케줄링·barge-in·duplex(playAndRecord) 동작은 실기기 스파이크로 우선 검증.
 
+## 2026-08-28 · react-native-audio-api 버전 안정성 검증 및 정확 버전 pin
+- 확인(출처: npm registry): `latest` dist-tag = **0.13.3**(현재 유일한 정식 릴리스). `1.0.0`은 매일 빌드되는 **nightly 프리릴리스** 단계로 안정성 미확보. 경쟁 라이브러리(live-audio-stream, audio-record 등)는 방치/아카이브.
+- 결정: 정식 최신 안정 버전 **0.13.3을 정확 버전으로 pin**(package.json/lockfile에서 caret 제거). nightly는 사용하지 않음. pre-1.0 특성상 마이너 드리프트(0.14.x)를 막기 위함.
+- 근거: 이 요구사항(raw PCM 스트리밍 캡처+무갭 재생+barge-in+무음모드/백그라운드 세션)을 한 패키지로 충족하는 유지보수 중인 대안이 없음. 잔여 리스크는 실기기 스파이크로 검증하고, 실패 시 백엔드 WebSocket 프록시/대체 오디오 스택으로 폴백.
+
 ## 2026-08-28 · Gemini Live 연결: 순수 WebSocket 어댑터 (공식 @google/genai SDK 미사용)
 - 대안: @google/genai SDK의 ai.live.connect 사용
 - 이유: @google/genai의 Live 클라이언트는 Node 전용 `ws`에 의존해 RN/Hermes에서 깨질 수 있고 공식 RN 지원이 없음. RN 전역 WebSocket으로 BidiGenerateContent 엔드포인트에 직접 연결하는 것이 커뮤니티 정석. PRD 6.2의 어댑터 패턴으로 감싸 엔진 교체 여지 확보.
