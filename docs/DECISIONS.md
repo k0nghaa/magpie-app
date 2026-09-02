@@ -33,3 +33,11 @@
 
 ## 2026-08-28 · Expo Go 대신 EAS dev build
 - 이유: react-native-audio-api는 네이티브 모듈이라 Expo Go에서 동작 불가. expo-dev-client + EAS development 빌드로 실기기 검증.
+
+## 2026-09-02 · iOS 빌드 환경: Intel 맥 로컬 빌드 포기, 윈도우 + EAS 클라우드 빌드로 확정
+- 대안: Intel 맥 로컬 빌드, Expo SDK 다운그레이드(54 등), Apple Silicon 맥 대여, Android 우선 검증
+- 이유: `expo-modules-jsi`와 `@expo/expo-modules-macros-plugin`의 `apple/Package.swift`가 `swift-tools-version: 6.2`를 요구함(에러: `package 'apple' is using Swift tools version 6.2.0 but the installed version is 6.0.0`). Swift 6.2는 Xcode 26 = Apple Silicon 전용이고, Intel 맥은 Xcode 16.2(Swift 6.0.3)가 상한이라 **실기기는 물론 시뮬레이터도 빌드 불가**. `swift-tools-version` 하향은 매니페스트가 트레일링 콤마(6.1)·`NonisolatedNonsendingByDefault`/`InferIsolatedConformances`(6.2)·swift-syntax 602를 실제로 사용하므로 불가.
+- EAS는 충족: SDK 57 기본 이미지 `macos-tahoe-26.5-xcode-26.6`(Xcode 26.6)이므로 `eas.json`에 `image` 명시 불필요. 빌드가 클라우드 macOS에서 돌아 개발 머신 OS는 무관 → 윈도우에서 `eas build` + `expo start`로 전체 루프 가능, 아이폰은 internal distribution 링크로 무선 설치(케이블·Xcode 불필요).
+- 비용: 실기기 설치는 UDID 등록이 필요해 Apple Developer Program($99/년) 필수. 무료 Apple ID는 로컬 Xcode(맥) 경유만 가능하므로 윈도우 경로에는 무료 옵션이 없음. 2026-04-28부터 App Store 업로드도 Xcode 26 + iOS 26 SDK가 강제라 어차피 필요한 비용.
+- 참고: `developmentClient: true`라 JS는 로컬 Metro가 번들 → `EXPO_PUBLIC_*` 키는 개발 머신 `.env`에서 인라인됨. `.env`를 EAS에 올릴 필요 없음(gitignore로 업로드에서도 제외됨).
+- EAS 시뮬레이터 빌드도 대안이 아님: EAS 러너가 Apple Silicon이라 arm64 슬라이스만 생성되고, Intel 맥 시뮬레이터는 x86_64를 요구함.
