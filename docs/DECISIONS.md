@@ -41,3 +41,8 @@
 - 비용: 실기기 설치는 UDID 등록이 필요해 Apple Developer Program($99/년) 필수. 무료 Apple ID는 로컬 Xcode(맥) 경유만 가능하므로 윈도우 경로에는 무료 옵션이 없음. 2026-04-28부터 App Store 업로드도 Xcode 26 + iOS 26 SDK가 강제라 어차피 필요한 비용.
 - 참고: `developmentClient: true`라 JS는 로컬 Metro가 번들 → `EXPO_PUBLIC_*` 키는 개발 머신 `.env`에서 인라인됨. `.env`를 EAS에 올릴 필요 없음(gitignore로 업로드에서도 제외됨).
 - EAS 시뮬레이터 빌드도 대안이 아님: EAS 러너가 Apple Silicon이라 arm64 슬라이스만 생성되고, Intel 맥 시뮬레이터는 x86_64를 요구함.
+
+## 2026-09-02 · eas.json에서 channel 제거 (OTA/EAS Update 미사용)
+- 대안: expo-updates 추가 후 channel 유지, 현행 유지(빌드 시 프롬프트 감수)
+- 이유: `channel`은 EAS Update(OTA) 대상 태그인데 `expo-updates`가 의존성에 없어 무효 상태였음. M1 dev 빌드는 `developmentClient: true`라 JS를 로컬 Metro가 번들하므로 OTA가 불필요. channel이 설정됐는데 expo-updates가 없으면 `eas build` 시 "expo-updates를 설치·설정할까요?" 대화형 프롬프트가 뜸(근거: eas-cli PR #2016). 셋 다 제거해 빌드를 깔끔하게 유지.
+- 재도입 시점: OTA 무선 업데이트가 필요한 M2 이후에 `expo-updates` 설치 + `eas update:configure`와 함께 channel을 다시 붙인다.
