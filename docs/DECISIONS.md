@@ -46,3 +46,9 @@
 - 대안: expo-updates 추가 후 channel 유지, 현행 유지(빌드 시 프롬프트 감수)
 - 이유: `channel`은 EAS Update(OTA) 대상 태그인데 `expo-updates`가 의존성에 없어 무효 상태였음. M1 dev 빌드는 `developmentClient: true`라 JS를 로컬 Metro가 번들하므로 OTA가 불필요. channel이 설정됐는데 expo-updates가 없으면 `eas build` 시 "expo-updates를 설치·설정할까요?" 대화형 프롬프트가 뜸(근거: eas-cli PR #2016). 셋 다 제거해 빌드를 깔끔하게 유지.
 - 재도입 시점: OTA 무선 업데이트가 필요한 M2 이후에 `expo-updates` 설치 + `eas update:configure`와 함께 channel을 다시 붙인다.
+
+## 2026-09-03 · react-native-audio-api의 AudioControls 위젯을 Metro 스텁으로 제거
+- 문제: `react-native-audio-api@0.13.3`의 `AudioControls.tsx`가 `react-native-gesture-handler`와 `react-native-reanimated`를 import하는데, 둘 다 peerDependencies에 선언되지 않음. 배럴 export(`index → api → AudioControls`)로 딸려와 Metro 번들링이 `Unable to resolve "react-native-gesture-handler"`로 실패. (tsc는 node_modules를 타입체크에서 건너뛰어 못 잡음)
+- 대안: (1) gesture-handler+reanimated 정식 설치 → 둘 다 네이티브 모듈이라 EAS 재빌드 필요 + reanimated babel 플러그인/GestureHandlerRootView 설정 필요. 안 쓰는 위젯을 위한 비용. (2) 라이브러리 버전 변경 → pre-1.0라 리스크.
+- 결정: 앱은 AudioControls(재생 UI 위젯)를 사용하지 않으므로(코드 검색 0건), `metro.config.js`의 `resolver.resolveRequest`로 **react-native-audio-api 내부에서 들어오는** 두 import만 빈 스텁(`stubs/empty.js`)으로 치환. 네이티브 모듈을 추가하지 않아 **기존 dev 빌드 바이너리 재사용**(재빌드 불필요). 우리 사용처(raw PCM 스트리밍)와 정확히 일치.
+- 범위 한정: `originModulePath`가 `react-native-audio-api`인 경우에만 치환해 다른 코드 영향 없음. 향후 이 두 라이브러리를 실제로 쓰게 되면 정식 설치 + 이 스텁 규칙 제거.
