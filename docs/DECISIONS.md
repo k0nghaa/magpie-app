@@ -52,3 +52,8 @@
 - 대안: (1) gesture-handler+reanimated 정식 설치 → 둘 다 네이티브 모듈이라 EAS 재빌드 필요 + reanimated babel 플러그인/GestureHandlerRootView 설정 필요. 안 쓰는 위젯을 위한 비용. (2) 라이브러리 버전 변경 → pre-1.0라 리스크.
 - 결정: 앱은 AudioControls(재생 UI 위젯)를 사용하지 않으므로(코드 검색 0건), `metro.config.js`의 `resolver.resolveRequest`로 **react-native-audio-api 내부에서 들어오는** 두 import만 빈 스텁(`stubs/empty.js`)으로 치환. 네이티브 모듈을 추가하지 않아 **기존 dev 빌드 바이너리 재사용**(재빌드 불필요). 우리 사용처(raw PCM 스트리밍)와 정확히 일치.
 - 범위 한정: `originModulePath`가 `react-native-audio-api`인 경우에만 치환해 다른 코드 영향 없음. 향후 이 두 라이브러리를 실제로 쓰게 되면 정식 설치 + 이 스텁 규칙 제거.
+
+## 2026-09-03 · AudioBufferQueueSourceNode.start를 start(0, 0)으로 명시 호출 (라이브러리 버그 우회)
+- 문제: `react-native-audio-api@0.13.3`의 `AudioBufferQueueSourceNode.start(when=0, offset=-1)`는 offset 기본값이 -1인데 곧바로 `offset < 0`을 거부해, 인자 없이 `start()`를 부르면 실기기에서 `RangeError: offset must be a finite non-negative number: -1`로 항상 throw됨(base 클래스 `AudioBufferSourceNode.start`는 offset 기본값이 0으로 정상 → 서브클래스 override의 회귀 버그).
+- 결정: `player.ts`에서 `queue.start(0, 0)`으로 offset을 명시적으로 0(=처음부터 재생, base와 동일 의미) 전달해 우회. 순수 JS 수정이라 재빌드 불필요.
+- 향후: 라이브러리가 기본값을 0으로 고치면 인자 생략으로 되돌릴 수 있음.

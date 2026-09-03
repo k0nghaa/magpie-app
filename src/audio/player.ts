@@ -22,7 +22,11 @@ export class PcmStreamPlayer {
     const ctx = new AudioContext({ sampleRate: OUTPUT_SAMPLE_RATE });
     const queue = ctx.createBufferQueueSource();
     queue.connect(ctx.destination);
-    queue.start();
+    // start(0, 0): offset을 명시적으로 0으로 넘긴다.
+    // react-native-audio-api@0.13.3의 AudioBufferQueueSourceNode.start는 offset
+    // 기본값이 -1인데 곧바로 음수 offset을 거부해, 인자 없이 start()를 부르면
+    // "offset must be a finite non-negative number: -1"로 항상 throw한다(라이브러리 버그).
+    queue.start(0, 0);
     this.ctx = ctx;
     this.queue = queue;
   }
