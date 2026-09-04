@@ -38,6 +38,14 @@ export class ConversationController {
   private readonly player = new PcmStreamPlayer();
   private readonly events: ConversationEvents;
   private active = false;
+  /**
+   * 반이중(half-duplex) 게이팅 플래그.
+   * true(AI 발화 중)일 때는 마이크 청크를 서버로 보내지 않는다.
+   * 0.13.3에는 iOS AEC가 없어(조사 확인) 스피커로 나온 AI 음성이 마이크로 되돌아가
+   * "사용자 발화"로 전사되며 가짜 barge-in을 유발하는데, 발화 국면 자체를 막아 이를 차단한다.
+   * 트레이드오프: AI가 말하는 동안에는 사용자가 끼어들어도(barge-in) 서버가 감지하지 못한다.
+   */
+  private aiSpeaking = false;
 
   constructor(events: ConversationEvents) {
     this.events = events;
@@ -77,15 +85,20 @@ export class ConversationController {
           void this.handleSetupComplete();
         },
         onAudio: (base64) => {
+          // AI 발화 시작 → 반이중 게이팅 ON (이 동안 마이크 전송 스킵)
+          this.aiSpeaking = true;
           this.events.onAiSpeaking?.(true);
           this.player.enqueue(base64);
         },
         onInterrupted: () => {
           // barge-in: 큐에 남은 AI 오디오 즉시 정지 (F2-3)
+          this.aiSpeaking = false;
           this.player.flush();
           this.events.onAiSpeaking?.(false);
         },
         onTurnComplete: () => {
+          // AI 발화 종료 → 게이팅 OFF (마이크 전송 재개)
+          this.aiSpeaking = false;
           this.events.onAiSpeaking?.(false);
         },
         onError: (message) => {
@@ -109,7 +122,11 @@ export class ConversationController {
     // AI가 먼저 인사하고 첫 질문 (F2-1)
     this.client?.sendUserText(GREETING_TRIGGER);
     // 마이크 스트리밍 시작 → 사용자가 말을 마치면 서버 VAD가 감지해 AI가 자동 응답 (F2-2)
-    await this.recorder.start((chunk) => this.client?.sendAudioChunk(chunk));
+    // 반이중: AI가 말하는 동안(aiSpeaking)에는 청크를 보내지 않아 에코가 서버로 유입되는 것을 막는다.
+    await this.recorder.start((chunk) => {
+      if (this.aiSpeaking) return;
+      this.client?.sendAudioChunk(chunk);
+    });
     this.events.onActive?.();
   }
 
