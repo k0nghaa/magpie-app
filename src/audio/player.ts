@@ -1,9 +1,8 @@
 /**
- * 24kHz PCM16 스트림 재생 (무갭) + barge-in 정지.
+ * 24kHz PCM16 스트림 재생 (무갭).
  *
  * Gemini가 청크로 보내는 오디오를 AudioBufferQueueSourceNode에 enqueue 하면
- * 백투백으로 이어 재생됩니다. 사용자가 끼어들면(interrupted) clearBuffers()로
- * 큐에 남은 오디오를 즉시 비웁니다.
+ * 백투백으로 이어 재생됩니다.
  */
 import {
   AudioContext,
@@ -39,11 +38,6 @@ export class PcmStreamPlayer {
     const buffer = this.ctx.createBuffer(1, float32.length, OUTPUT_SAMPLE_RATE);
     buffer.copyToChannel(float32, 0);
     this.queue.enqueueBuffer(buffer);
-  }
-
-  /** barge-in: 큐에 남은 오디오 즉시 비우기. */
-  flush(): void {
-    this.queue?.clearBuffers();
   }
 
   /** 재생 그래프 정리. */

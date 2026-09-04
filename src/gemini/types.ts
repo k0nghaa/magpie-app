@@ -67,8 +67,6 @@ export type ClientMessage =
 
 export interface ServerContent {
   modelTurn?: { parts?: Part[] };
-  /** 사용자가 끼어들어 모델 발화가 중단됨(barge-in). */
-  interrupted?: boolean;
   /** 현재 턴의 모델 발화 종료. */
   turnComplete?: boolean;
   /** 모델 생성 완료(오디오 스트림 끝). */

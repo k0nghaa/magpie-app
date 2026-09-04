@@ -3,8 +3,7 @@
  * 마이크(recorder) ↔ Gemini Live(client) ↔ 스피커(player)를 배선합니다.
  *
  * 흐름: 권한/세션 → 연결 → setupComplete → AI 첫 인사 트리거(F2-1) →
- *       마이크 스트리밍 시작(F2-2, 서버 VAD가 턴 감지) → 모델 오디오 재생 →
- *       사용자 끼어들면 재생 flush(F2-3).
+ *       마이크 스트리밍 시작(F2-2, 서버 VAD가 턴 감지) → 모델 오디오 재생.
  */
 import { GEMINI_API_KEY, GEMINI_MODEL } from '../config/env';
 import {
@@ -90,12 +89,6 @@ export class ConversationController {
           this.events.onAiSpeaking?.(true);
           this.player.enqueue(base64);
         },
-        onInterrupted: () => {
-          // barge-in: 큐에 남은 AI 오디오 즉시 정지 (F2-3)
-          this.aiSpeaking = false;
-          this.player.flush();
-          this.events.onAiSpeaking?.(false);
-        },
         onTurnComplete: () => {
           // AI 발화 종료 → 게이팅 OFF (마이크 전송 재개)
           this.aiSpeaking = false;
@@ -123,6 +116,7 @@ export class ConversationController {
     this.client?.sendUserText(GREETING_TRIGGER);
     // 마이크 스트리밍 시작 → 사용자가 말을 마치면 서버 VAD가 감지해 AI가 자동 응답 (F2-2)
     // 반이중: AI가 말하는 동안(aiSpeaking)에는 청크를 보내지 않아 에코가 서버로 유입되는 것을 막는다.
+    // 턴 종료 판단은 서버 auto-VAD에 맡긴다(클라 Hybrid VAD는 전송 중지로 데드락을 유발해 제거).
     await this.recorder.start((chunk) => {
       if (this.aiSpeaking) return;
       this.client?.sendAudioChunk(chunk);
