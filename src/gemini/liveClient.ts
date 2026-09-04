@@ -150,6 +150,21 @@ export class GeminiLiveClient {
       return;
     }
 
+    // [debug] 오디오가 아닌 서버 신호는 키를 로그로 남겨 활동 감지(activityStart 등)를 눈으로 확인.
+    if (__DEV__) {
+      const topKeys = Object.keys(msg);
+      const nonAudio = topKeys.some((k) => k !== 'serverContent');
+      const scDbg = msg.serverContent;
+      const scKeys = scDbg ? Object.keys(scDbg) : [];
+      const onlyAudio =
+        scKeys.length === 1 && scKeys[0] === 'modelTurn';
+      if (nonAudio || !onlyAudio) {
+        console.log('[live] recv:', topKeys.join(','), 'sc:', scKeys.join(','));
+      }
+      const inTx = msg.serverContent?.inputTranscription?.text;
+      if (inTx) console.log('[live] 사용자 전사:', JSON.stringify(inTx));
+    }
+
     const sc = msg.serverContent;
     if (sc) {
       if (sc.interrupted) {

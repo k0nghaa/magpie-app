@@ -15,6 +15,8 @@ export class MicRecorder {
   private running = false;
   /** 실기기에서 실제 전달된 샘플레이트(디버그/검증용). */
   private lastSampleRate = 0;
+  /** [debug] 콜백 호출 횟수. */
+  private chunkCount = 0;
 
   /** 캡처 시작. onChunk로 16kHz PCM16 base64 청크가 흘러나옵니다. */
   async start(onChunk: (base64Pcm16k: string) => void): Promise<void> {
@@ -32,6 +34,18 @@ export class MicRecorder {
         const rate = event.buffer.sampleRate;
         this.lastSampleRate = rate;
         const mono = event.buffer.getChannelData(0);
+        this.chunkCount++;
+        // [debug] 마이크가 실제로 소리를 잡는지: 10청크마다 샘플레이트·길이·최대 음량(peak).
+        if (__DEV__ && this.chunkCount % 10 === 1) {
+          let peak = 0;
+          for (let i = 0; i < mono.length; i++) {
+            const a = Math.abs(mono[i]);
+            if (a > peak) peak = a;
+          }
+          console.log(
+            `[mic] chunk#${this.chunkCount} rate=${rate} len=${mono.length} peak=${peak.toFixed(4)}`,
+          );
+        }
         const pcm16k =
           rate === INPUT_SAMPLE_RATE
             ? mono
@@ -42,6 +56,7 @@ export class MicRecorder {
 
     await recorder.start();
     this.running = true;
+    if (__DEV__) console.log('[mic] recorder.start() 완료, 콜백 대기 중');
   }
 
   getActualSampleRate(): number {

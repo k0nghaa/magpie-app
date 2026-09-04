@@ -38,6 +38,8 @@ export interface SetupMessage {
       };
       activityHandling?: 'START_OF_ACTIVITY_INTERRUPTS' | 'NO_INTERRUPTION';
     };
+    /** 서버가 사용자 입력 오디오를 텍스트로 전사해 되돌려줌. */
+    inputAudioTranscription?: Record<string, never>;
   };
 }
 
@@ -71,6 +73,10 @@ export interface ServerContent {
   turnComplete?: boolean;
   /** 모델 생성 완료(오디오 스트림 끝). */
   generationComplete?: boolean;
+  /** 사용자 입력 오디오의 전사(inputAudioTranscription 활성화 시). */
+  inputTranscription?: { text?: string };
+  /** 모델 출력 오디오의 전사(활성화 시). */
+  outputTranscription?: { text?: string };
 }
 
 export interface ServerMessage {

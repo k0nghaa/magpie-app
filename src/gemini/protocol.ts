@@ -50,6 +50,8 @@ export function buildSetupMessage(opts: SetupOptions): SetupMessage {
         automaticActivityDetection: {},
         activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
       },
+      // 서버가 "사용자 말로 들은 것"을 텍스트로 되돌려줌(입력이 실제 도달·감지되는지 확인용).
+      inputAudioTranscription: {},
     },
   };
 }
