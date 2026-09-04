@@ -67,5 +67,5 @@
 ## 2026-09-04 · 에코 대응: 반이중(half-duplex) 마이크 게이팅 (iOS AEC 부재 우회)
 - 문제: `react-native-audio-api@0.13.3`은 iOS AEC(음향 에코 제거)를 지원하지 않음(위 결정·이슈 #670 참조). 스피커로 나온 AI 음성이 마이크로 되돌아가 서버에 "사용자 발화"로 전사되고 가짜 barge-in(AI가 자기 말에 자기가 끊김)을 유발. 볼륨 정상화(voiceChat→default) 후 스피커 출력이 커져 증상이 악화됨. 이어폰 사용 시엔 물리적 분리로 증상 없음(실기기 확인).
 - 대안: (1) 정식 AEC — `iosVoiceProcessing: true`는 미released nightly(1.0)에만 존재, 기존 nightly 미사용 결정과 충돌. (2) 이어폰 전용 — 아침 스피커 핸즈프리 컨셉(PRD §1) 훼손. (3) 클라 GainNode로 마이크 무음화 — 컨트롤러 레벨 게이팅으로 더 단순히 달성 가능.
-- 결정: `conversationController.ts`에 `aiSpeaking` 플래그를 두고, AI 발화 중(`onAudio`~`onTurnComplete`)에는 마이크 청크를 서버로 보내지 않음. 진폭이 아니라 발화 "국면"으로 막아 견고. 트레이드오프: AI 발화 중에는 사용자 barge-in을 서버가 감지 못함(F2-3 일시 축소). 정식 AEC(iosVoiceProcessing) 정식 릴리스 시 이 게이팅을 제거하고 full-duplex barge-in 복원.
+- 결정: `conversationController.ts`에 `aiSpeaking` 플래그를 두고, AI 발화 중(`onAudio`~`onTurnComplete`)에는 마이크 청크를 서버로 보내지 않음. 진폭이 아니라 발화 "국면"으로 막아 견고. 트레이드오프: AI 발화 중에는 사용자 barge-in을 서버가 감지 못함. barge-in은 이 시점에 PRD 스코프에서 제거했으며(라이브러리 AEC 부재), 정식 AEC(iosVoiceProcessing) 도입 시 이 게이팅을 제거하고 기능으로 재추가한다.
 - 검증: 실기기(스피커)에서 가짜 barge-in 소멸, 꼬리 에코 없음, 정상 턴 교대 확인. 순수 JS 변경이라 재빌드 불필요.
