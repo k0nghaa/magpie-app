@@ -3,8 +3,12 @@
  *
  * PRD F1-3: 무음 모드에서도 스피커로 재생, 이어폰 연결 시 이어폰.
  * - iosCategory 'playAndRecord' + iosOptions 'defaultToSpeaker' → 무음 스위치 무시하고 스피커 출력, 동시에 마이크 입력.
- * - iosMode 'voiceChat' → 에코 제거(AEC) 활성화. 스피커로 나온 AI 음성이 마이크로 되돌아가
- *   barge-in을 오검출하는 것을 막아줌(핸즈프리 대화의 핵심).
+ *   (무음 스위치 무시·duplex는 카테고리가 담당하므로 iosMode와 무관하게 유지됨.)
+ * - iosMode 'default' → 미디어 수준 볼륨으로 스피커 재생.
+ *   과거엔 'voiceChat'(AEC 목적)을 썼으나, 설치된 react-native-audio-api@0.13.3은
+ *   VoiceProcessingIO를 연결하지 않아 voiceChat으로도 실제 AEC가 걸리지 않는다(조사 확인).
+ *   오히려 통신 모드 특유의 게인 억제·수화부 라우팅으로 AI 음성이 작게 들렸다.
+ *   에코(스피커→마이크 되돌이)는 반이중 마이크 게이팅으로 별도 처리한다.
  */
 import { AudioManager } from 'react-native-audio-api';
 
@@ -20,7 +24,7 @@ export async function ensureMicPermission(): Promise<boolean> {
 export async function activateConversationSession(): Promise<void> {
   AudioManager.setAudioSessionOptions({
     iosCategory: 'playAndRecord',
-    iosMode: 'voiceChat',
+    iosMode: 'default',
     iosOptions: ['defaultToSpeaker', 'allowBluetoothHFP', 'allowBluetoothA2DP'],
   });
   await AudioManager.setAudioSessionActivity(true);

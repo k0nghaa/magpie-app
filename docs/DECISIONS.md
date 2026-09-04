@@ -57,3 +57,9 @@
 - 문제: `react-native-audio-api@0.13.3`의 `AudioBufferQueueSourceNode.start(when=0, offset=-1)`는 offset 기본값이 -1인데 곧바로 `offset < 0`을 거부해, 인자 없이 `start()`를 부르면 실기기에서 `RangeError: offset must be a finite non-negative number: -1`로 항상 throw됨(base 클래스 `AudioBufferSourceNode.start`는 offset 기본값이 0으로 정상 → 서브클래스 override의 회귀 버그).
 - 결정: `player.ts`에서 `queue.start(0, 0)`으로 offset을 명시적으로 0(=처음부터 재생, base와 동일 의미) 전달해 우회. 순수 JS 수정이라 재빌드 불필요.
 - 향후: 라이브러리가 기본값을 0으로 고치면 인자 생략으로 되돌릴 수 있음.
+
+## 2026-09-04 · iOS 오디오 세션 iosMode: voiceChat → default (AI 재생 볼륨 정상화)
+- 문제: `iosMode: 'voiceChat'`은 통신(전화)용 모드라 출력 게인이 낮게 캘리브레이션되고 기본 라우팅이 수화부 쪽이라 AI 음성이 작게 들렸음. 원래 voiceChat을 쓴 목적은 AEC였으나, 설치된 `react-native-audio-api@0.13.3`은 VoiceProcessingIO를 연결하지 않아 **voiceChat으로도 실제 AEC가 걸리지 않음**(조사 확인: 라이브러리 소스에 VoiceProcessing 코드 없음, GitHub 이슈 #670에서 메인테이너가 AEC 미지원 인정. `iosVoiceProcessing` 옵션은 미released `main` 브랜치/nightly에만 존재).
+- 대안: nightly(1.0)로 올려 `AudioRecorder({ iosVoiceProcessing: true })` 사용 / patch-package로 백포트 / 재생부에 GainNode 부스트
+- 결정: `iosMode`를 `'default'`로 변경. 무음 스위치 무시·duplex·이어폰 라우팅은 **`playAndRecord` 카테고리**가 담당하므로 iosMode 변경과 무관하게 유지됨. nightly 채택은 기존 결정(0.13.3 pin, nightly 미사용)과 충돌하므로 배제. 어차피 0.13.3에서 voiceChat은 AEC 이득이 0이라 잃는 것 없음. 에코는 반이중 게이팅으로 별도 처리(아래 결정).
+- 검증: 실기기에서 AI 음성 볼륨 증가 확인. 순수 JS 변경이라 재빌드 불필요.
