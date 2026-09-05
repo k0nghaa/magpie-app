@@ -45,7 +45,10 @@ export function buildSetupMessage(opts: SetupOptions): SetupMessage {
           : undefined,
       },
       systemInstruction: { parts: [{ text: opts.systemInstruction }] },
-      // 서버 자동 VAD + barge-in(사용자 발화가 모델을 끊음)은 기본값이지만 명시해 둡니다.
+      // 서버 자동 VAD(기본값=감지 켜짐)가 턴 종료를 감지해 AI가 자동 응답한다(F2-2).
+      // iosMode voiceChat→default로 입력이 깨끗해져 기본값만으로 지연 없이 동작한다.
+      // 주의: automaticActivityDetection에 값을 넣어 서버 종료를 둔감하게 만들면
+      //       오히려 응답 생성이 막히는 현상이 있었으므로(실기기 확인) 기본값을 유지한다.
       realtimeInputConfig: {
         automaticActivityDetection: {},
         activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',

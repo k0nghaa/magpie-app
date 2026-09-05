@@ -21,8 +21,6 @@ export interface LiveClientCallbacks {
   onAudio?: (base64Pcm: string) => void;
   /** 모델이 텍스트를 함께 보낼 때(있으면). */
   onText?: (text: string) => void;
-  /** 사용자가 끼어들어 모델 발화가 중단됨(barge-in) → 재생 즉시 정지해야 함. */
-  onInterrupted?: () => void;
   /** 현재 모델 턴 종료. */
   onTurnComplete?: () => void;
   /** 서버가 곧 세션을 종료함. */
@@ -167,9 +165,6 @@ export class GeminiLiveClient {
 
     const sc = msg.serverContent;
     if (sc) {
-      if (sc.interrupted) {
-        this.cb.onInterrupted?.();
-      }
       const parts = sc.modelTurn?.parts ?? [];
       for (const part of parts) {
         if (part.inlineData?.data) {
