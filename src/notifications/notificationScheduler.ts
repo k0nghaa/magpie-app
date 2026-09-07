@@ -36,7 +36,7 @@ export async function ensureAndroidChannel(): Promise<void> {
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
     name: '아침 대화 알림',
     importance: Notifications.AndroidImportance.HIGH,
-    sound: 'default',
+    // sound 미지정 = 시스템 기본 알림음. (문자열을 주면 커스텀 사운드 파일명으로 해석됨)
   });
 }
 
@@ -76,7 +76,9 @@ export async function scheduleDailyReminder(
     content: {
       title: '까치가 왔어요! 🐦',
       body: '오늘의 아침 영어 대화를 시작할까요?',
-      sound: 'default',
+      // true = 시스템 기본 알림음. 문자열('default' 등)은 커스텀 사운드 파일명으로
+      // 해석되어 Android에서 "custom sound not found" 경고가 뜬다.
+      sound: true,
       // 되읽기용 + 알림 탭 라우팅용 식별 데이터
       data: { type: REMINDER_DATA_TYPE, hour, minute },
     },
