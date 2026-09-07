@@ -12,6 +12,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { hasApiKey } from '../config/env';
 import { useConversation } from '../session/useConversation';
+import { useAppRoute } from './appRoute';
 
 export default function ConversationScreen() {
   const status = useConversation((s) => s.status);
@@ -19,10 +20,22 @@ export default function ConversationScreen() {
   const error = useConversation((s) => s.error);
   const start = useConversation((s) => s.start);
   const stop = useConversation((s) => s.stop);
+  const navigate = useAppRoute((s) => s.navigate);
 
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
+
+      {/* 설정(알림 시간) 진입. 대화 중에는 숨겨 오작동을 막는다. */}
+      {status === 'idle' && (
+        <Pressable
+          style={styles.settingsButton}
+          onPress={() => navigate('settings')}
+          hitSlop={12}
+        >
+          <Text style={styles.settingsLabel}>⚙︎ 설정</Text>
+        </Pressable>
+      )}
 
       <View style={styles.header}>
         <Text style={styles.title}>🐦 매그파이</Text>
@@ -109,6 +122,8 @@ const styles = StyleSheet.create({
     paddingVertical: 64,
     paddingHorizontal: 24,
   },
+  settingsButton: { position: 'absolute', top: 64, right: 24, zIndex: 10 },
+  settingsLabel: { color: '#8a93a6', fontSize: 15, fontWeight: '600' },
   header: { alignItems: 'center', gap: 4 },
   title: { color: '#ffffff', fontSize: 30, fontWeight: '700' },
   subtitle: { color: '#8a93a6', fontSize: 15 },
