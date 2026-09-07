@@ -94,3 +94,16 @@
 - 이유: 설정 시각을 예약 알림의 `content.data.{hour,minute}`에 실어 두고 `getAllScheduledNotificationsAsync()`로 되읽어 복원. data는 iOS/Android 모두 안정적으로 왕복하므로 별도 KV 네이티브 의존성을 회피(안정성·최소 범위 원칙). 예약 = 곧 저장.
 
 > [M2] dev build 재생성 필요: expo-notifications·@react-native-community/datetimepicker는 네이티브 모듈이며 app.json plugin/권한(POST_NOTIFICATIONS, SCHEDULE_EXACT_ALARM)이 변경됐으므로, 실기기 검증 전 EAS development 빌드를 1회 재생성해야 한다(두 모듈 + 권한 변경이 한 번의 재빌드로 반영됨).
+
+## 2026-09-07 · [범위 확정] M2는 일반 푸시 알림으로 종료, "진짜 알람"은 M2.5로 분리
+- 배경: 이 서비스의 창업 가설이 "계속되는 푸시 알림 무시 → 습관 실패"(PRD §1)라, 무음 모드를 뚫고 확실히 깨우는 "진짜 알람"이 제품의 핵심 전제로 부상. 하지만 이는 PRD §2 비목표이자 M2(알림 트리거) 범위 밖.
+- 결정:
+  - **M2**는 현재의 expo-notifications 기반 일반 로컬 푸시 알림(예약·탭→대화 시작)으로 **확정·종료**. iPhone(iOS 26.6.1) 실기기에서 잠금/콜드스타트/백그라운드/무음/이어폰 시나리오 정상 확인.
+  - 무음 스위치까지 뚫는 **"진짜 알람"은 별도 마일스톤 M2.5로 분리**하고, **M3(둥지/보상)보다 우선** 착수(못 깨우면 보상 화면 도달 자체가 불가 → 루프 입구가 먼저).
+- M2.5 방향(조사 기반, 상세는 [docs/alarm-feasibility.md](./alarm-feasibility.md)):
+  - iOS: **AlarmKit(iOS 26+)** — 무음/Focus/DND 관통, 지속 울림, 알람 버튼(App Intent + `openAppWhenRun`)으로 종료 상태에서도 앱 실행→대화 시작. Swift 커스텀 Expo 네이티브 모듈 필요(성숙한 RN 래퍼 없음). **최소 1탭 필요, 0-탭 자동 대화 재생은 여전히 불가**(PRD 기존 비목표와 일치).
+  - Android: full-screen intent + exact alarm + foreground service. "알람 앱" 자격 시 권한 자동 승인. `react-native-notify-kit`(Notifee 포크) 후보이나 자체 검증 필요.
+  - 착수 방식: **온디바이스 스파이크(iPhone iOS 26.6.1)로 iOS 26 AlarmKit 알람음 안정성부터 검증**(iOS 26.0/26.1 커스텀 사운드 버그 보고 있음) 후 본구현.
+- 스킵한 대안:
+  - **경량 개선(Time Sensitive interruption level·30초 커스텀 사운드·반복 넛지)**: 전부 Apple 공식 알림 API(꼼수 아님)지만 AlarmKit이 상위호환이라 지금은 불필요. 배포 단계에서 iOS 26 미만 fallback이 필요해지면 그때 이 "깨끗한 알림 경로"로 추가(무음 오디오 루프 같은 편법은 정책 위반·불안정이라 배제).
+  - **최소 iOS 26으로 다운로드 제한 vs iOS<26 fallback**: 배포 시점 결정 사항(스파이크를 막지 않음). 개인용 단계 기본값은 "최소 26, fallback 없음"(코드 경로 단일화).
