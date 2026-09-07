@@ -69,3 +69,27 @@
 - 대안: (1) 정식 AEC — `iosVoiceProcessing: true`는 미released nightly(1.0)에만 존재, 기존 nightly 미사용 결정과 충돌. (2) 이어폰 전용 — 아침 스피커 핸즈프리 컨셉(PRD §1) 훼손. (3) 클라 GainNode로 마이크 무음화 — 컨트롤러 레벨 게이팅으로 더 단순히 달성 가능.
 - 결정: `conversationController.ts`에 `aiSpeaking` 플래그를 두고, AI 발화 중(`onAudio`~`onTurnComplete`)에는 마이크 청크를 서버로 보내지 않음. 진폭이 아니라 발화 "국면"으로 막아 견고. 트레이드오프: AI 발화 중에는 사용자 barge-in을 서버가 감지 못함. barge-in은 이 시점에 PRD 스코프에서 제거했으며(라이브러리 AEC 부재), 정식 AEC(iosVoiceProcessing) 도입 시 이 게이팅을 제거하고 기능으로 재추가한다.
 - 검증: 실기기(스피커)에서 가짜 barge-in 소멸, 꼬리 에코 없음, 정상 턴 교대 확인. 순수 JS 변경이라 재빌드 불필요.
+
+## 2026-09-07 · [M2] 로컬 알림 라이브러리: expo-notifications 채택
+- 대안: notifee, @notifee/react-native, 직접 네이티브 모듈
+- 이유: Expo 관리형(config plugin)에 통합돼 EAS 빌드와 마찰이 없고, DAILY 반복 트리거·권한·cold start 응답 수신을 한 패키지로 커버. PRD 6.1의 `expo-notifications`(로컬 알림) 명시와 일치.
+- 확인(출처: expo/expo 네이티브 소스 대조): `SchedulableTriggerInputTypes.DAILY`는 iOS에서 `UNCalendarNotificationTrigger(repeats:true)` 하드코딩, Android에서 fire마다 다음 날을 재예약(self-rescheduling)해 **매일 반복**된다(`repeats` 필드 불필요, 1회성 아님). 재부팅 후에도 라이브러리 내장 `RECEIVE_BOOT_COMPLETED` 리시버가 복원.
+
+## 2026-09-07 · [M2] 화면 구조: 조건부 렌더링(네비게이션 라이브러리 없음) 유지
+- 대안: react-navigation(native-stack) 지금 도입, expo-router
+- 이유: M2는 화면이 2개(대화/설정)뿐이라 경량 zustand 스토어(`appRoute`) 기반 조건부 렌더링으로 충분. M1의 "네비게이션 라이브러리 없음" 결정과 연속. native-stack이면 gesture-handler/reanimated는 불필요하나(스텁과 무관), 화면 2개에 네이티브 모듈 2개(screens/safe-area-context)를 추가할 이유가 아직 없음.
+- 재도입 시점: M3에서 둥지 화면이 추가돼 화면이 3개+가 되면 `@react-navigation/native-stack` 도입(알림 딥링크 라우팅도 함께 정석화).
+
+## 2026-09-07 · [M2] Android 정확 알람: SCHEDULE_EXACT_ALARM 선언 + 자동 inexact 폴백
+- 대안: expo-intent-launcher로 설정화면 유도, exact 미사용(inexact만)
+- 이유: 아침 습관 트리거라 정시성이 중요(±1시간이면 루틴 부적합)해 `app.json`에 `SCHEDULE_EXACT_ALARM` 선언. 라이브러리가 `canScheduleExactAlarms()`로 exact→inexact 자동 폴백하므로 권한 미허용(특히 Android 14+ 신규설치 기본 거부)이어도 알림 자체는 온다(크래시/누락 없음). expo-notifications엔 exact-alarm 권한을 앱에서 요청하는 공식 API가 없어 설정화면 유도(비공식 커뮤니티 패턴, 의존성 추가)는 이번 범위에서 제외. 설정 화면에 "정확 알람 꺼짐 시 최대 1시간 지연" 안내만 표시.
+
+## 2026-09-07 · [M2] 시간 picker: @react-native-community/datetimepicker
+- 대안: 순수 JS 스테퍼, 커스텀 휠
+- 이유: OS 네이티브 시간 선택 UI로 UX가 익숙하고 유지보수가 안정적. 어차피 expo-notifications로 dev build를 재생성하므로 네이티브 모듈 1개 추가 비용이 합산됨. `expo install`이 SDK 57 호환 9.1.0 선택, config plugin 자동 등록.
+
+## 2026-09-07 · [M2] 알림 시각 저장: 별도 저장소 없이 예약 알림 content.data 사용
+- 대안: @react-native-async-storage/async-storage, expo-secure-store
+- 이유: 설정 시각을 예약 알림의 `content.data.{hour,minute}`에 실어 두고 `getAllScheduledNotificationsAsync()`로 되읽어 복원. data는 iOS/Android 모두 안정적으로 왕복하므로 별도 KV 네이티브 의존성을 회피(안정성·최소 범위 원칙). 예약 = 곧 저장.
+
+> [M2] dev build 재생성 필요: expo-notifications·@react-native-community/datetimepicker는 네이티브 모듈이며 app.json plugin/권한(POST_NOTIFICATIONS, SCHEDULE_EXACT_ALARM)이 변경됐으므로, 실기기 검증 전 EAS development 빌드를 1회 재생성해야 한다(두 모듈 + 권한 변경이 한 번의 재빌드로 반영됨).
