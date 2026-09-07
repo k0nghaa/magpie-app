@@ -189,6 +189,9 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.footer}>
+        <Text style={styles.footerHint}>
+          저장하면 알림·마이크 권한을 미리 확보해요 (아침 첫 대화에서 팝업 방지).
+        </Text>
         <Pressable
           style={({ pressed }) => [
             styles.button,
@@ -240,6 +243,7 @@ const styles = StyleSheet.create({
   time: { color: '#ffffff', fontSize: 56, fontWeight: '700', letterSpacing: 2 },
   status: { color: '#8a93a6', fontSize: 14, marginTop: 8 },
   footer: { alignItems: 'center', gap: 12 },
+  footerHint: { color: '#6b7280', fontSize: 13, textAlign: 'center' },
   button: {
     paddingVertical: 18,
     paddingHorizontal: 48,

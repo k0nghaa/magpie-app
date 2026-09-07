@@ -83,6 +83,7 @@
 ## 2026-09-07 · [M2] Android 정확 알람: SCHEDULE_EXACT_ALARM 선언 + 자동 inexact 폴백
 - 대안: expo-intent-launcher로 설정화면 유도, exact 미사용(inexact만)
 - 이유: 아침 습관 트리거라 정시성이 중요(±1시간이면 루틴 부적합)해 `app.json`에 `SCHEDULE_EXACT_ALARM` 선언. 라이브러리가 `canScheduleExactAlarms()`로 exact→inexact 자동 폴백하므로 권한 미허용(특히 Android 14+ 신규설치 기본 거부)이어도 알림 자체는 온다(크래시/누락 없음). expo-notifications엔 exact-alarm 권한을 앱에서 요청하는 공식 API가 없어 설정화면 유도(비공식 커뮤니티 패턴, 의존성 추가)는 이번 범위에서 제외. 설정 화면에 "정확 알람 꺼짐 시 최대 1시간 지연" 안내만 표시.
+- 배포 주의: `SCHEDULE_EXACT_ALARM`은 Google Play 정책상 알람시계/캘린더 부류 앱에만 허용된다. 개인 sideload·EAS dev build에는 무해하나, Play 스토어 배포 시 심사 거부 리스크가 있으므로 배포 단계 전 재검토(대안: `USE_EXACT_ALARM` 부적격 → inexact 전환 또는 정책 소명).
 
 ## 2026-09-07 · [M2] 시간 picker: @react-native-community/datetimepicker
 - 대안: 순수 JS 스테퍼, 커스텀 휠
