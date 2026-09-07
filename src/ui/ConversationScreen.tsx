@@ -1,6 +1,6 @@
 /**
- * M1 최소 화면: [대화 시작] 버튼 · 대화 중 상태 표시 · [종료] 버튼.
- * (알림/보상/설정은 M2~M3 범위라 여기 없음)
+ * 홈 화면: [대화 시작] 버튼 · 대화 중 상태 표시 · [종료] 버튼 · 설정(⚙︎) 진입.
+ * (보상/둥지는 M3 범위)
  */
 import {
   ActivityIndicator,
@@ -12,6 +12,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { hasApiKey } from '../config/env';
 import { useConversation } from '../session/useConversation';
+import { useAppRoute } from './appRoute';
 
 export default function ConversationScreen() {
   const status = useConversation((s) => s.status);
@@ -19,10 +20,23 @@ export default function ConversationScreen() {
   const error = useConversation((s) => s.error);
   const start = useConversation((s) => s.start);
   const stop = useConversation((s) => s.stop);
+  const navigate = useAppRoute((s) => s.navigate);
 
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
+
+      {/* 설정(알림 시간) 진입. 대화 중(connecting/active)에는 숨겨 오작동을 막고,
+          오류 상태에서도 설정에 접근할 수 있게 한다(연결 반복 실패 시 시간 변경 경로 확보). */}
+      {(status === 'idle' || status === 'error') && (
+        <Pressable
+          style={styles.settingsButton}
+          onPress={() => navigate('settings')}
+          hitSlop={12}
+        >
+          <Text style={styles.settingsLabel}>⚙︎ 설정</Text>
+        </Pressable>
+      )}
 
       <View style={styles.header}>
         <Text style={styles.title}>🐦 매그파이</Text>
@@ -109,6 +123,8 @@ const styles = StyleSheet.create({
     paddingVertical: 64,
     paddingHorizontal: 24,
   },
+  settingsButton: { position: 'absolute', top: 64, right: 24, zIndex: 10 },
+  settingsLabel: { color: '#8a93a6', fontSize: 15, fontWeight: '600' },
   header: { alignItems: 'center', gap: 4 },
   title: { color: '#ffffff', fontSize: 30, fontWeight: '700' },
   subtitle: { color: '#8a93a6', fontSize: 15 },

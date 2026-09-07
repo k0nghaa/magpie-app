@@ -11,7 +11,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.k0nghaa.magpie",
       "infoPlist": {
-        "UIBackgroundModes": ["audio"],
+        "UIBackgroundModes": [
+          "audio"
+        ],
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -29,7 +31,9 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
-        "android.permission.FOREGROUND_SERVICE_MICROPHONE"
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SCHEDULE_EXACT_ALARM"
       ]
     },
     "web": {
@@ -54,7 +58,9 @@
             "microphone"
           ]
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-notifications"
     ],
     "extra": {
       "eas": {
