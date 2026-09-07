@@ -1,6 +1,6 @@
 /**
- * M1 최소 화면: [대화 시작] 버튼 · 대화 중 상태 표시 · [종료] 버튼.
- * (알림/보상/설정은 M2~M3 범위라 여기 없음)
+ * 홈 화면: [대화 시작] 버튼 · 대화 중 상태 표시 · [종료] 버튼 · 설정(⚙︎) 진입.
+ * (보상/둥지는 M3 범위)
  */
 import {
   ActivityIndicator,
@@ -26,8 +26,9 @@ export default function ConversationScreen() {
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      {/* 설정(알림 시간) 진입. 대화 중에는 숨겨 오작동을 막는다. */}
-      {status === 'idle' && (
+      {/* 설정(알림 시간) 진입. 대화 중(connecting/active)에는 숨겨 오작동을 막고,
+          오류 상태에서도 설정에 접근할 수 있게 한다(연결 반복 실패 시 시간 변경 경로 확보). */}
+      {(status === 'idle' || status === 'error') && (
         <Pressable
           style={styles.settingsButton}
           onPress={() => navigate('settings')}
