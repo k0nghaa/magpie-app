@@ -8,16 +8,24 @@ import { requireNativeModule } from 'expo-modules-core';
 
 export type AlarmAuthState = 'notDetermined' | 'authorized' | 'denied';
 
+export interface ScheduledTime {
+  hour: number;
+  minute: number;
+}
+
 export interface RealAlarmNativeModule {
   /** iOS 26+ 여부. false면 호출자는 M2 로컬 알림으로 fallback해야 한다. */
   isAvailable(): boolean;
   /** 알람 버튼이 기록한 pending-start(alarm id)를 읽고 지운다. 없으면 null. (동기) */
   consumePendingStart(): string | null;
+  /** 예약된 시각 {hour, minute}. 없으면 null. (동기, 설정 화면 복원용) */
+  getScheduledTime(): ScheduledTime | null;
   getAuthorizationState(): Promise<AlarmAuthState>;
   requestAuthorization(): Promise<AlarmAuthState>;
-  /** now + secondsFromNow에 1회성 테스트 알람 예약. 예약된 alarm id 반환. */
-  scheduleTestAlarm(
-    secondsFromNow: number,
+  /** 매일 hour:minute에 반복되는 알람 예약. 예약된 alarm id 반환. */
+  scheduleDaily(
+    hour: number,
+    minute: number,
     title: string,
     startLabel: string,
     stopLabel: string,

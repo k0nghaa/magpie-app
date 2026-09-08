@@ -14,6 +14,9 @@ enum RealAlarmBridge {
   // app.json ios.entitlements의 App Group과 반드시 일치해야 한다.
   static let suiteName = "group.com.k0nghaa.magpie"
   static let pendingKey = "magpie.pendingStartAlarmId"
+  static let hourKey = "magpie.alarmHour"
+  static let minuteKey = "magpie.alarmMinute"
+  static let scheduledKey = "magpie.alarmScheduled"
 
   static var defaults: UserDefaults? { UserDefaults(suiteName: suiteName) }
 
@@ -31,6 +34,26 @@ enum RealAlarmBridge {
     let value = defaults.string(forKey: pendingKey)
     defaults.removeObject(forKey: pendingKey)
     return value
+  }
+
+  /// 설정 화면 복원용 예약 시각 저장(예약 = 곧 저장, M2의 content.data 패턴과 동일 취지).
+  static func setScheduledTime(hour: Int, minute: Int) {
+    defaults?.set(hour, forKey: hourKey)
+    defaults?.set(minute, forKey: minuteKey)
+    defaults?.set(true, forKey: scheduledKey)
+    defaults?.synchronize()
+  }
+
+  static func clearScheduledTime() {
+    defaults?.set(false, forKey: scheduledKey)
+    defaults?.removeObject(forKey: hourKey)
+    defaults?.removeObject(forKey: minuteKey)
+    defaults?.synchronize()
+  }
+
+  static func scheduledTime() -> (hour: Int, minute: Int)? {
+    guard let defaults = defaults, defaults.bool(forKey: scheduledKey) else { return nil }
+    return (defaults.integer(forKey: hourKey), defaults.integer(forKey: minuteKey))
   }
 }
 
@@ -96,21 +119,34 @@ public struct MagpieStartConversationIntent: LiveActivityIntent {
 // MARK: - 스케줄러
 @available(iOS 26.0, *)
 enum RealAlarmScheduler {
-  /// now + secondsFromNow에 1회성 알람을 예약(스파이크 테스트용). 예약된 alarm id(UUID 문자열) 반환.
-  /// 본구현에서는 이 자리에 Alarm.Schedule.relative(daily)로 매일 반복을 넣는다.
-  static func scheduleFixed(
-    secondsFromNow: Double,
+  /// 우리가 만든 알람을 모두 취소(정지/취소) + 저장 시각 클리어. 중복 예약·이중 발화 방지.
+  static func cancelAll() {
+    let manager = AlarmManager.shared
+    if let alarms = try? manager.alarms {
+      for alarm in alarms {
+        // alerting이면 먼저 울림을 정지한 뒤, 상태와 무관하게 cancel로 완전 제거한다.
+        // (stop만 하면 반복 스케줄이 남아 다음날 유령 발화할 수 있음 — 리뷰 권장#2.)
+        if case .alerting = alarm.state {
+          try? manager.stop(id: alarm.id)
+        }
+        try? manager.cancel(id: alarm.id)
+      }
+    }
+    RealAlarmBridge.clearScheduledTime()
+  }
+
+  /// 2버튼([끄기]/[대화 시작]) 프레젠테이션 + 인텐트 구성(고정/반복 공통).
+  private static func buildConfig(
+    alarmId: UUID,
+    schedule: Alarm.Schedule,
     title: String,
     startLabel: String,
     stopLabel: String
-  ) async throws -> String {
-    let uuid = UUID()
-    let fireDate = Date().addingTimeInterval(secondsFromNow)
-
+  ) -> AlarmManager.AlarmConfiguration<MagpieAlarmMetadata> {
     let stopButton = AlarmButton(
       text: LocalizedStringResource(stringLiteral: stopLabel),
       textColor: .white,
-      systemImageName: "stop.circle"
+      systemImageName: "bubble.left.and.bubble.right.fill"
     )
     let startButton = AlarmButton(
       text: LocalizedStringResource(stringLiteral: startLabel),
@@ -118,8 +154,8 @@ enum RealAlarmScheduler {
       systemImageName: "bubble.left.and.bubble.right.fill"
     )
 
-    // 2버튼: [끄기](정지) + [대화 시작](.custom → 앱 실행 인텐트).
-    // ⚠️ 컴파일 노브 1: secondaryButtonBehavior 케이스가 SDK에서 '.custom'이 아니면 여기서 실패.
+    // 2버튼: 정지 컨트롤(밀어서 끄기) + [대화 시작](.custom → 앱 실행 인텐트). 둘 다 앱 실행+대화 시작.
+    // ⚠️ 컴파일 노브 1: secondaryButtonBehavior 케이스가 SDK에서 '.custom'이 아니면 여기서 실패(→ .countdown 확인).
     let alert = AlarmPresentation.Alert(
       title: LocalizedStringResource(stringLiteral: title),
       stopButton: stopButton,
@@ -135,23 +171,56 @@ enum RealAlarmScheduler {
     )
 
     let stopIntent: any LiveActivityIntent = MagpieStopAlarmIntent()
-    let secondaryIntent: any LiveActivityIntent = MagpieStartConversationIntent(alarmId: uuid.uuidString)
+    let secondaryIntent: any LiveActivityIntent = MagpieStartConversationIntent(alarmId: alarmId.uuidString)
 
     // 시스템 기본 알람음(전 iOS 26.x 버전에서 신뢰성 확인됨). 커스텀 사운드는 26.x 버그로 회피.
     let alarmSound: AlertConfiguration.AlertSound = .default
 
     // ⚠️ 컴파일 노브 2: countdownDuration이 옵셔널이 아니면 nil이 거부됨 →
     //    Alarm.CountdownDuration(preAlert: nil, postAlert: nil)로 교체.
-    let config = AlarmManager.AlarmConfiguration<MagpieAlarmMetadata>(
+    return AlarmManager.AlarmConfiguration<MagpieAlarmMetadata>(
       countdownDuration: nil,
-      schedule: .fixed(fireDate),
+      schedule: schedule,
       attributes: attributes,
       stopIntent: stopIntent,
       secondaryIntent: secondaryIntent,
       sound: alarmSound
     )
+  }
+
+  /// 매일 hour:minute에 반복되는 알람 예약(production). 기존 예약을 먼저 지워 중복을 막는다.
+  static func scheduleDaily(
+    hour: Int,
+    minute: Int,
+    title: String,
+    startLabel: String,
+    stopLabel: String
+  ) async throws -> String {
+    cancelAll()
+
+    let uuid = UUID()
+    // ⚠️ 컴파일 노브 3: 반복 스케줄 API는 스파이크에 없던 신규 조합이라 시그니처 드리프트 가능.
+    //    컴파일 실패 시 Xcode Quick Help로 확인: Relative.Time(hour:minute:) 라벨,
+    //    Recurrence.weekly의 인자 타입([Locale.Weekday]), Relative(time:repeats:) 라벨.
+    let time = Alarm.Schedule.Relative.Time(hour: hour, minute: minute)
+    // 매일 = 모든 요일 반복. (요일별 on/off는 향후 범위 — PRD F4-1)
+    let recurrence = Alarm.Schedule.Relative.Recurrence.weekly([
+      .sunday, .monday, .tuesday, .wednesday, .thursday, .friday, .saturday,
+    ])
+    let schedule = Alarm.Schedule.relative(
+      Alarm.Schedule.Relative(time: time, repeats: recurrence)
+    )
+
+    let config = buildConfig(
+      alarmId: uuid,
+      schedule: schedule,
+      title: title,
+      startLabel: startLabel,
+      stopLabel: stopLabel
+    )
 
     try await AlarmManager.shared.schedule(id: uuid, configuration: config)
+    RealAlarmBridge.setScheduledTime(hour: hour, minute: minute)
     return uuid.uuidString
   }
 }
@@ -192,29 +261,37 @@ public class RealAlarmModule: Module {
       }
     }
 
-    AsyncFunction("scheduleTestAlarm") { (secondsFromNow: Double, title: String, startLabel: String, stopLabel: String) -> String in
+    /// 매일 hour:minute에 반복되는 알람 예약. 예약된 alarm id 반환.
+    AsyncFunction("scheduleDaily") { (hour: Int, minute: Int, title: String, startLabel: String, stopLabel: String) -> String in
       guard #available(iOS 26.0, *) else {
         throw Exception(name: "E_UNSUPPORTED", description: "AlarmKit은 iOS 26+에서만 사용할 수 있습니다.")
       }
-      return try await RealAlarmScheduler.scheduleFixed(
-        secondsFromNow: secondsFromNow,
+      return try await RealAlarmScheduler.scheduleDaily(
+        hour: hour,
+        minute: minute,
         title: title,
         startLabel: startLabel,
         stopLabel: stopLabel
       )
     }
 
+    /// 우리가 만든 알람을 모두 취소 + 저장 시각 클리어.
     AsyncFunction("cancelAll") { () -> Void in
       guard #available(iOS 26.0, *) else { return }
-      let manager = AlarmManager.shared
-      guard let alarms = try? manager.alarms else { return }
-      for alarm in alarms {
-        if case .alerting = alarm.state {
-          try? manager.stop(id: alarm.id)
-        } else {
-          try? manager.cancel(id: alarm.id)
-        }
+      RealAlarmScheduler.cancelAll()
+    }
+
+    /// 설정 화면 복원용: 예약된 시각 {hour, minute}. 없으면 nil.
+    /// App Group 저장값 + 실제 예약 잔존(manager.alarms)을 교차 확인해 stale 표시를 막는다.
+    Function("getScheduledTime") { () -> [String: Int]? in
+      guard #available(iOS 26.0, *) else { return nil }
+      guard let time = RealAlarmBridge.scheduledTime() else { return nil }
+      if let alarms = try? AlarmManager.shared.alarms, !alarms.isEmpty {
+        return ["hour": time.hour, "minute": time.minute]
       }
+      // 스토어엔 남았는데 실제 알람이 없으면(외부 취소 등) stale → 정리하고 nil.
+      RealAlarmBridge.clearScheduledTime()
+      return nil
     }
   }
 
