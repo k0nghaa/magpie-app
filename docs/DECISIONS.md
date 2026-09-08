@@ -120,7 +120,8 @@
 ## 2026-09-08 · [M2.5] 알람 버튼→앱 실행 브릿지: App Group 공유 UserDefaults
 - 대안: 딥링크(URL scheme)/NSUserActivity, in-memory static(expo-alarm-kit 방식)
 - 이유: AlarmKit 버튼 인텐트(LiveActivityIntent)의 `perform()`이 진입점이며, cold start에서 시스템 알람 프로세스→앱 프로세스로 상태를 확실히 넘기려면 App Group의 공유 UserDefaults가 정석(딥링크는 AlarmKit 공식 흐름 아님). `perform()`이 pending-start(alarm id)를 기록 → 네이티브 `consumePendingStart()`가 읽고 즉시 clear → App.tsx가 실행 시(cold)와 AppState 'active'(warm)에 소비해 `navigate('conversation') + useConversation.getState().start()` 호출. 기존 알림 응답 처리와 동일 패턴, 세션 코드 미수정.
-- 주의: `openAppWhenRun`은 정적 프로퍼티라 런타임 토글 불가 → [끄기]/[대화 시작] 인텐트 타입을 분리(각각 false/true).
+- 주의: `openAppWhenRun`은 정적 프로퍼티라 런타임 토글 불가 → 동작별 인텐트 타입을 분리한다.
+- (2026-09-08 실기기 UX 조정) AlarmKit은 `stopButton`이 필수라 정지 컨트롤(밀어서 끄기)을 없앨 수 없음. "밀어서 끄면 알람만 꺼지고 화면이 안 켜진다"는 실사용 피드백에 따라 **정지 컨트롤도 openAppWhenRun=true + pending-start 기록**으로 바꿔, 밀든 버튼을 누르든 모두 앱 실행+대화 시작이 되게 함(스킵 탈출구 제거 = 각성 보장 강화). 스와이프 해제 시 stopIntent 미발화 iOS 26 버그가 보고돼 있어 [대화 시작] 버튼(탭)을 확실한 경로로 함께 유지.
 
 ## 2026-09-08 · [M2.5] 권한/엔타이틀먼트: NSAlarmKitUsageDescription + App Group만
 - 대안: `com.apple.developer.alarmkit` 엔타이틀먼트 추가, App ID capability 신청

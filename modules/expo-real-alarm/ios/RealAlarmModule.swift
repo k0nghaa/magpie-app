@@ -46,15 +46,21 @@ nonisolated struct MagpieAlarmMetadata: AlarmMetadata {
 // AlarmKit 버튼 인텐트는 (plain AppIntent가 아니라) LiveActivityIntent를 따라야 한다.
 // openAppWhenRun은 정적 프로퍼티라 런타임 토글 불가 → 동작별로 타입을 분리한다.
 
-/// [끄기] 버튼: 알람만 정지(앱 실행 안 함). 시스템이 정지를 처리하므로 perform은 비워둔다.
+/// 정지 컨트롤(밀어서 끄기): AlarmKit이 필수로 요구하는 stopButton. 완전 제거 불가.
+/// 밀어서 끄기도 앱을 열고 대화를 시작하게 한다(openAppWhenRun=true + pending-start 기록) →
+/// 밀든 버튼을 누르든 결국 대화로 이어져 "그냥 끄고 스킵" 탈출구가 없어짐(각성 보장).
+/// 단, 스와이프 해제 시 stopIntent 미발화 iOS 26 버그가 보고돼 있어 [대화 시작] 버튼을
+/// 확실한 경로로 함께 유지한다(둘 다 같은 결과).
 @available(iOS 26.0, *)
 public struct MagpieStopAlarmIntent: LiveActivityIntent {
-  public static var title: LocalizedStringResource = "끄기"
-  public static var openAppWhenRun: Bool = false
+  public static var title: LocalizedStringResource = "대화 시작"
+  public static var openAppWhenRun: Bool = true
 
   public init() {}
 
   public func perform() async throws -> some IntentResult {
+    // 정지 컨트롤엔 alarmId가 없으므로 존재 신호용 센티넬만 기록(App.tsx가 존재 여부로 판정).
+    RealAlarmBridge.setPendingStart("pending")
     return .result()
   }
 }
