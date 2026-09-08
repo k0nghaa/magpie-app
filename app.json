@@ -14,7 +14,13 @@
         "UIBackgroundModes": [
           "audio"
         ],
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAlarmKitUsageDescription": "매그파이가 아침 알람으로 깨워 영어 회화를 시작할 수 있게 알람을 사용합니다."
+      },
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.k0nghaa.magpie"
+        ]
       }
     },
     "android": {
