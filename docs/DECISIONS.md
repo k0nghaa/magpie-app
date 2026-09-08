@@ -132,6 +132,15 @@
 - 대안: 최소 iOS 26으로 App Store 다운로드 제한(코드 경로 단일화)
 - 이유: 아무도 서비스에서 잠기지 않도록 iOS<26/Android/Expo Go에서는 `isRealAlarmAvailable()`이 false → 기존 M2 로컬 알림(scheduleDailyReminder) 유지. AlarmKit 코드는 전부 `@available(iOS 26.0,*)` 런타임 게이팅이라 pod 최소 타깃(15.1) 유지, 배포 타깃 상향 불필요. "최소 iOS 26, fallback 없음"은 코드가 아니라 **배포 시점 옵션**으로만 남김(개인용 단계에서 재결정).
 
+## 2026-09-08 · [M2.5] iOS 스파이크 실기기 통과 → 본구현 착수
+- 검증(iPhone iOS 26.6.1): 무음 스위치 ON + 잠금 상태에서 알람 발화 확인, 밀어서 끄기·[대화 시작] 버튼 둘 다 앱 실행 + 대화 세션 시작 확인. 스파이크 게이트 통과 → 방향 확정.
+- 순서 결정: iOS 본구현 완성·커밋 → Android(방식은 그때 확정). Android 병행은 변경폭이 커 배제.
+
+## 2026-09-08 · [M2.5] iOS 본구현: AlarmKit 매일 반복 예약 + 백엔드 분기 추상화
+- 대안: 스파이크의 1회성 예약 유지, Settings에서 expo-notifications를 직접 분기
+- 이유: 스파이크의 `scheduleFixed`(1회성)를 `Alarm.Schedule.relative` + 전체 7요일 반복(=매일)으로 승격해 production 예약으로 전환(요일별 on/off는 향후 범위, PRD F4-1). 설정 화면은 새 `src/alarm/alarmScheduler.ts` 추상화만 호출하고, 추상화가 `isRealAlarmAvailable()`로 iOS26+면 AlarmKit(`scheduleDaily`)·그 외면 M2 `scheduleDailyReminder`로 분기. **예약 시 반대편 백엔드를 항상 취소**해 이중 발화를 막는다(cancelReminders ↔ cancelAllAlarms). 예약 시각은 App Group UserDefaults에 저장하고 `getScheduledTime`이 `manager.alarms`와 교차확인해 stale 표시를 방지(M2의 content.data 왕복 패턴과 동일 취지). 권한도 추상화(`ensureAlarmPermission`)가 AlarmKit 권한/알림 권한으로 분기. 세션 코드·알림 스케줄러·네이티브 모듈 경계는 유지하고 조합만.
+- 정리: 온디바이스 검증용 스파이크 패널(`AlarmSpikePanel`, `SHOW_ALARM_SPIKE`)과 `scheduleTestAlarm`은 제거(P4). 실제 검증은 Settings 저장 흐름으로 일원화.
+
 ## 2026-09-08 · [M2.5] Android FSI 방식은 iOS 스파이크 통과 후 결정(보류)
 - 대안: 지금 확정
 - 이유: 리스크가 iOS AlarmKit에 집중돼 iOS 온디바이스 스파이크를 먼저 게이트로 둠. Android 재검증 결론은 기록: `react-native-notify-kit`(v10.7.0, New Arch 전용, config plugin이 `USE_FULL_SCREEN_INTENT`는 자동 주입 안 함)로 FSI **표시**만 맡기고 신뢰성 핵심(exact alarm·부팅 재예약)은 얇은 자체 Kotlin으로 두는 **하이브리드**가 유력. Play 정책상 `USE_EXACT_ALARM`는 미선언(심사 거부 리스크)하고 기존 `SCHEDULE_EXACT_ALARM` + 런타임 grant + 거부 시 60초 헤즈업 fallback. Android 15는 `BOOT_COMPLETED` 리시버에서 mediaPlayback/microphone FGS 직접 시작 금지(부팅 시 재예약만).
