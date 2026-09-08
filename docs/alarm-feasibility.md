@@ -41,11 +41,17 @@
 2. 스파이크 통과 시 Android full-screen intent 구현.
 3. iOS 26+ → AlarmKit / 미만 → 기존 M2 알림으로 런타임 분기(또는 최소 iOS 26 제한).
 
-## 재검증 필요 목록
-1. AlarmKit 커스텀 사운드 버그가 iOS 26.6.x에서 해소됐는지
-2. Android 15(API 35) 고유 FSI/exact alarm 변경사항
-3. `react-native-notify-kit`의 RN 0.86 / New Architecture 완전 호환
-4. Expo SDK 57 config plugin에서 AlarmKit 엔타이틀먼트(App Groups 등) 자동 주입 가능 여부
+## 재검증 결과 (2026-09-08 공식 문서 재확인 완료)
+1. **AlarmKit 커스텀 사운드 버그 → 미해소/불확실.** 26.0→26.1→2026-02까지 형태를 바꿔가며 지속 보고(에러음 대체·미반복·30초 제한 등), 26.6.x 해소 확인 사례 없음. `.default`(시스템 기본음)는 전 버전 정상. → **MVP는 `.default`만 사용, 커스텀 사운드는 실기기 검증 후 옵션**(결정 기록: DECISIONS 2026-09-08).
+2. **Android 15(API 35) FSI/exact alarm 자체 변경 없음.** 단 `BOOT_COMPLETED` 리시버에서 mediaPlayback/microphone FGS 직접 시작 금지 + audio focus는 top/FGS 상태에서만 요청 가능 → 부팅 시 AlarmManager 재예약만, FGS는 알람 브로드캐스트가 시작.
+3. **react-native-notify-kit → New Arch(TurboModules) 전용으로 확정**(하드 요구). peerDep `react-native >=0.73.0`(상한 없음), RN 0.86은 0.85 대비 breaking change 0 → 실호환 가능성 높음(실빌드 스모크테스트 필요). config plugin은 있으나 `USE_FULL_SCREEN_INTENT` 자동 주입 안 함(수동).
+4. **AlarmKit 엔타이틀먼트 → 애초에 특별 엔타이틀먼트 불필요.** `com.apple.developer.alarmkit`는 존재하지 않는 가짜 키(Apple 엔지니어 확인). `NSAlarmKitUsageDescription`(Info.plist) + 런타임 `requestAuthorization()`만. App Group은 AlarmKit 요구가 아니라 앱 실행 브릿지용 선택 — app.json `ios.entitlements`로 주입 가능.
+
+## 구현 착수 결정 (2026-09-08)
+- **순서**: iOS 온디바이스 스파이크 먼저(게이트) → 통과 시 Android → fallback 분기. (상세: DECISIONS 2026-09-08 [M2.5] 항목들)
+- **iOS**: 커스텀 Swift Expo 네이티브 모듈 `modules/expo-real-alarm`(성숙한 라이브러리 없음). 2버튼(끄기/대화 시작), `.custom` secondary + `openAppWhenRun` 인텐트 → App Group 브릿지 → App.tsx 소비 → `useConversation.start()`.
+- **Android**: 방식 보류(하이브리드 notify-kit vs 자체 Kotlin), iOS 스파이크 후 결정.
+- **스파이크 코드 위치**: `modules/expo-real-alarm/`, `src/alarm/realAlarm.ts`, `src/ui/AlarmSpikePanel.tsx`(SettingsScreen에 `SHOW_ALARM_SPIKE` 플래그로 노출), App.tsx 소비 배선.
 
 ## 출처
 - https://developer.apple.com/documentation/AlarmKit

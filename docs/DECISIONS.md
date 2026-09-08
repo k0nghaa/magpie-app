@@ -107,3 +107,30 @@
 - 스킵한 대안:
   - **경량 개선(Time Sensitive interruption level·30초 커스텀 사운드·반복 넛지)**: 전부 Apple 공식 알림 API(꼼수 아님)지만 AlarmKit이 상위호환이라 지금은 불필요. 배포 단계에서 iOS 26 미만 fallback이 필요해지면 그때 이 "깨끗한 알림 경로"로 추가(무음 오디오 루프 같은 편법은 정책 위반·불안정이라 배제).
   - **최소 iOS 26으로 다운로드 제한 vs iOS<26 fallback**: 배포 시점 결정 사항(스파이크를 막지 않음). 개인용 단계 기본값은 "최소 26, fallback 없음"(코드 경로 단일화).
+
+## 2026-09-08 · [M2.5] iOS AlarmKit: 커스텀 Swift Expo 네이티브 모듈 채택(라이브러리 배제)
+- 대안: expo-alarm-kit(28★)·react-native-nitro-ios-alarm-kit(13★)·rn-alarm-kit(5★) 등 기존 래퍼 사용
+- 이유: 공식 문서 재검증 결과 성숙한 RN/Expo AlarmKit 래퍼가 없음(전부 <30★, config plugin 부재, 하나는 자칭 "not production-ready"). AlarmKit OS 동작이 26.x 포인트 릴리스마다 바뀌어 소규모 포크가 추적을 못 함. `modules/expo-real-alarm`로 자체 Swift 모듈 작성(레퍼런스 두 곳의 실제 컴파일되는 시그니처를 근거로 함: full initializer `AlarmManager.AlarmConfiguration<Meta>(countdownDuration:schedule:attributes:stopIntent:secondaryIntent:sound:)`, `AlarmButton(text:textColor:systemImageName:)`, `try manager.alarms`/`stop(id:)`/`cancel(id:)`).
+- 리스크: 신규 API 시그니처 드리프트 → 온디바이스 빌드에서 컴파일 검증 필요(Swift는 EAS Xcode 26.6 클라우드 빌드에서만 컴파일 가능, 로컬/CI tsc로는 못 잡음). 컴파일 리스크가 높은 두 지점(`secondaryButtonBehavior: .custom`, `countdownDuration: nil`)을 코드 주석에 명시.
+
+## 2026-09-08 · [M2.5] 알람음: 시스템 기본음(.default)만 사용, 커스텀 사운드 회피
+- 대안: 앱 번들 커스텀 알람음(AlertConfiguration.AlertSound.named(...))
+- 이유: iOS 26.0→26.1→2026-02까지 커스텀 사운드 버그가 형태를 바꿔가며 지속 보고(에러음 대체·미반복·30초 제한 등), 26.6.x 해소 확인 사례 없음. 반면 `.default`는 전 버전에서 정상 동작·지속 울림이 확인됨. MVP는 기본음에 의존하고 커스텀 사운드는 실기기 검증 후 옵션 기능으로만.
+
+## 2026-09-08 · [M2.5] 알람 버튼→앱 실행 브릿지: App Group 공유 UserDefaults
+- 대안: 딥링크(URL scheme)/NSUserActivity, in-memory static(expo-alarm-kit 방식)
+- 이유: AlarmKit 버튼 인텐트(LiveActivityIntent)의 `perform()`이 진입점이며, cold start에서 시스템 알람 프로세스→앱 프로세스로 상태를 확실히 넘기려면 App Group의 공유 UserDefaults가 정석(딥링크는 AlarmKit 공식 흐름 아님). `perform()`이 pending-start(alarm id)를 기록 → 네이티브 `consumePendingStart()`가 읽고 즉시 clear → App.tsx가 실행 시(cold)와 AppState 'active'(warm)에 소비해 `navigate('conversation') + useConversation.getState().start()` 호출. 기존 알림 응답 처리와 동일 패턴, 세션 코드 미수정.
+- 주의: `openAppWhenRun`은 정적 프로퍼티라 런타임 토글 불가 → [끄기]/[대화 시작] 인텐트 타입을 분리(각각 false/true).
+
+## 2026-09-08 · [M2.5] 권한/엔타이틀먼트: NSAlarmKitUsageDescription + App Group만
+- 대안: `com.apple.developer.alarmkit` 엔타이틀먼트 추가, App ID capability 신청
+- 이유: 공식 포럼에서 Apple 엔지니어가 `com.apple.developer.alarmkit`는 LLM이 지어낸 **존재하지 않는 키**임을 확인(추가 시 프로비저닝 프로파일 깨짐). AlarmKit은 특별 엔타이틀먼트/포털 신청 불필요 — Info.plist `NSAlarmKitUsageDescription` + 런타임 `requestAuthorization()`만 필요. App Group(`group.com.k0nghaa.magpie`)은 AlarmKit 요구가 아니라 위 브릿지용으로만 추가. app.json의 `ios.infoPlist`/`ios.entitlements`로 주입(EAS가 capability 동기화).
+- 주의: `authorizationState`가 허용 후에도 `.notDetermined`로 오보고되는 버그 보고 있음 → 방어적 재확인 로직 유지.
+
+## 2026-09-08 · [M2.5] 미지원 기기 fallback: isRealAlarmAvailable() 런타임 분기
+- 대안: 최소 iOS 26으로 App Store 다운로드 제한(코드 경로 단일화)
+- 이유: 아무도 서비스에서 잠기지 않도록 iOS<26/Android/Expo Go에서는 `isRealAlarmAvailable()`이 false → 기존 M2 로컬 알림(scheduleDailyReminder) 유지. AlarmKit 코드는 전부 `@available(iOS 26.0,*)` 런타임 게이팅이라 pod 최소 타깃(15.1) 유지, 배포 타깃 상향 불필요. "최소 iOS 26, fallback 없음"은 코드가 아니라 **배포 시점 옵션**으로만 남김(개인용 단계에서 재결정).
+
+## 2026-09-08 · [M2.5] Android FSI 방식은 iOS 스파이크 통과 후 결정(보류)
+- 대안: 지금 확정
+- 이유: 리스크가 iOS AlarmKit에 집중돼 iOS 온디바이스 스파이크를 먼저 게이트로 둠. Android 재검증 결론은 기록: `react-native-notify-kit`(v10.7.0, New Arch 전용, config plugin이 `USE_FULL_SCREEN_INTENT`는 자동 주입 안 함)로 FSI **표시**만 맡기고 신뢰성 핵심(exact alarm·부팅 재예약)은 얇은 자체 Kotlin으로 두는 **하이브리드**가 유력. Play 정책상 `USE_EXACT_ALARM`는 미선언(심사 거부 리스크)하고 기존 `SCHEDULE_EXACT_ALARM` + 런타임 grant + 거부 시 60초 헤즈업 fallback. Android 15는 `BOOT_COMPLETED` 리시버에서 mediaPlayback/microphone FGS 직접 시작 금지(부팅 시 재예약만).
