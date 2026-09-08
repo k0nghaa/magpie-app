@@ -28,6 +28,10 @@ import {
   scheduleDailyReminder,
 } from '../notifications/notificationScheduler';
 import { useAppRoute } from './appRoute';
+import AlarmSpikePanel from './AlarmSpikePanel';
+
+// [M2.5 스파이크] 개발용 AlarmKit 검증 패널 표시 토글. 검증 후 false로 두거나 블록째 제거.
+const SHOW_ALARM_SPIKE = true;
 
 /** hour/minute → 오늘 날짜의 Date (picker는 Date를 다룸). */
 function toDate(hour: number, minute: number): Date {
@@ -218,6 +222,8 @@ export default function SettingsScreen() {
             <Text style={styles.textButtonLabel}>알림 끄기</Text>
           </Pressable>
         )}
+
+        {SHOW_ALARM_SPIKE && <AlarmSpikePanel />}
       </View>
     </View>
   );
