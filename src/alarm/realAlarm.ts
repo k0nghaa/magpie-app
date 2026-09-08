@@ -9,9 +9,10 @@ import { Platform } from 'react-native';
 import type {
   AlarmAuthState,
   RealAlarmNativeModule,
+  ScheduledTime,
 } from '../../modules/expo-real-alarm';
 
-export type { AlarmAuthState };
+export type { AlarmAuthState, ScheduledTime };
 
 // iOS에서만 네이티브 모듈을 로드. 모듈이 없으면(빌드에 미포함/Expo Go) null로 두고 전부 fallback.
 let native: RealAlarmNativeModule | null = null;
@@ -53,14 +54,25 @@ export async function requestAlarmAuthorization(): Promise<AlarmAuthState> {
   return native.requestAuthorization();
 }
 
-export async function scheduleTestAlarm(
-  secondsFromNow: number,
+export async function scheduleDailyRealAlarm(
+  hour: number,
+  minute: number,
   title: string,
   startLabel: string,
   stopLabel: string,
 ): Promise<string> {
   if (!native) throw new Error('AlarmKit을 사용할 수 없는 기기입니다.');
-  return native.scheduleTestAlarm(secondsFromNow, title, startLabel, stopLabel);
+  return native.scheduleDaily(hour, minute, title, startLabel, stopLabel);
+}
+
+/** 예약된 시각(설정 화면 복원용). 없거나 미지원이면 null. */
+export function getScheduledRealAlarmTime(): ScheduledTime | null {
+  if (!native) return null;
+  try {
+    return native.getScheduledTime();
+  } catch {
+    return null;
+  }
 }
 
 export async function cancelAllAlarms(): Promise<void> {
