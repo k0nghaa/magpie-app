@@ -141,6 +141,12 @@
 - 이유: 스파이크의 `scheduleFixed`(1회성)를 `Alarm.Schedule.relative` + 전체 7요일 반복(=매일)으로 승격해 production 예약으로 전환(요일별 on/off는 향후 범위, PRD F4-1). 설정 화면은 새 `src/alarm/alarmScheduler.ts` 추상화만 호출하고, 추상화가 `isRealAlarmAvailable()`로 iOS26+면 AlarmKit(`scheduleDaily`)·그 외면 M2 `scheduleDailyReminder`로 분기. **예약 시 반대편 백엔드를 항상 취소**해 이중 발화를 막는다(cancelReminders ↔ cancelAllAlarms). 예약 시각은 App Group UserDefaults에 저장하고 `getScheduledTime`이 `manager.alarms`와 교차확인해 stale 표시를 방지(M2의 content.data 왕복 패턴과 동일 취지). 권한도 추상화(`ensureAlarmPermission`)가 AlarmKit 권한/알림 권한으로 분기. 세션 코드·알림 스케줄러·네이티브 모듈 경계는 유지하고 조합만.
 - 정리: 온디바이스 검증용 스파이크 패널(`AlarmSpikePanel`, `SHOW_ALARM_SPIKE`)과 `scheduleTestAlarm`은 제거(P4). 실제 검증은 Settings 저장 흐름으로 일원화.
 
+## 2026-09-09 · [스코프] 플랫폼 분리 진행: iOS 우선 완주, Android는 실기기 확보 후 일괄
+- 배경: Android 실기기 검증 환경이 없어(에뮬 doze로 시간 알람 검증 불가, M2에서 확인) 진짜 알람 FSI를 지금 실증할 수 없음. iOS M2.5는 실기기(26.6.1)에서 핵심 통과.
+- 결정: **① M2.5 iOS를 main에 머지** → **② M3(둥지/보상)를 iOS 버전만 먼저 진행** → **③ Android 실기기 확보 시 M2.5(진짜 알람)+M3를 일괄 구현.** Android 진짜 알람 구현 체크리스트는 docs/platform-roadmap.md에 정리.
+- 안전장치: Android/iOS<26에서는 이미 M2 일반 로컬 알림으로 런타임 fallback(`alarmScheduler`)하므로, Android도 "일반 알림" 수준으로는 동작함(진짜 알람 FSI만 미구현). 아무도 서비스에서 잠기지 않음.
+- iOS 미검증 잔여: 매일 반복(익일 재발화)은 시간상 실사용 중 확인(안 되면 리뷰 권장#1대로 인텐트의 stop 호출 제거). 빌드·무음/잠금 발화·버튼/밀어서끄기→앱 실행은 검증 완료(= Swift 컴파일 노브 3곳도 EAS 빌드 통과).
+
 ## 2026-09-08 · [M2.5] Android FSI 방식은 iOS 스파이크 통과 후 결정(보류)
 - 대안: 지금 확정
 - 이유: 리스크가 iOS AlarmKit에 집중돼 iOS 온디바이스 스파이크를 먼저 게이트로 둠. Android 재검증 결론은 기록: `react-native-notify-kit`(v10.7.0, New Arch 전용, config plugin이 `USE_FULL_SCREEN_INTENT`는 자동 주입 안 함)로 FSI **표시**만 맡기고 신뢰성 핵심(exact alarm·부팅 재예약)은 얇은 자체 Kotlin으로 두는 **하이브리드**가 유력. Play 정책상 `USE_EXACT_ALARM`는 미선언(심사 거부 리스크)하고 기존 `SCHEDULE_EXACT_ALARM` + 런타임 grant + 거부 시 60초 헤즈업 fallback. Android 15는 `BOOT_COMPLETED` 리시버에서 mediaPlayback/microphone FGS 직접 시작 금지(부팅 시 재예약만).
