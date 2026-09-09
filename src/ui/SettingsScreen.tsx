@@ -22,11 +22,12 @@ import DateTimePicker, {
 } from '@react-native-community/datetimepicker';
 import { ensureMicPermission } from '../audio/audioSession';
 import {
-  cancelReminders,
-  ensureNotificationPermission,
-  getScheduledReminderTime,
-  scheduleDailyReminder,
-} from '../notifications/notificationScheduler';
+  activeBackend,
+  cancelAllScheduled,
+  ensureAlarmPermission,
+  getScheduledAlarmTime,
+  scheduleDailyAlarm,
+} from '../alarm/alarmScheduler';
 import { useAppRoute } from './appRoute';
 
 /** hour/minute → 오늘 날짜의 Date (picker는 Date를 다룸). */
@@ -56,7 +57,7 @@ export default function SettingsScreen() {
     let cancelled = false;
     (async () => {
       try {
-        const current = await getScheduledReminderTime();
+        const current = await getScheduledAlarmTime();
         if (cancelled) return;
         if (current) {
           setDate(toDate(current.hour, current.minute));
@@ -84,12 +85,15 @@ export default function SettingsScreen() {
       const hour = date.getHours();
       const minute = date.getMinutes();
 
-      // 1) 알림 권한
-      const notifOk = await ensureNotificationPermission();
-      if (!notifOk) {
+      // 1) 알람/알림 권한 (iOS26+는 AlarmKit 권한, 그 외는 알림 권한)
+      const permOk = await ensureAlarmPermission();
+      if (!permOk) {
+        const usesAlarm = activeBackend() === 'alarmkit';
         Alert.alert(
-          '알림 권한이 필요해요',
-          '설정 > 앱 > 매그파이에서 알림을 허용해 주세요.',
+          usesAlarm ? '알람 권한이 필요해요' : '알림 권한이 필요해요',
+          usesAlarm
+            ? '설정 > 매그파이에서 알람을 허용해 주세요.'
+            : '설정 > 앱 > 매그파이에서 알림을 허용해 주세요.',
         );
         return;
       }
@@ -97,12 +101,17 @@ export default function SettingsScreen() {
       // 2) 마이크 권한 선확보 (아침 첫 대화에서 팝업이 뜨지 않게)
       const micOk = await ensureMicPermission();
 
-      // 3) 매일 반복 알림 예약
-      await scheduleDailyReminder(hour, minute);
+      // 3) 매일 반복 예약 (백엔드는 기기에 따라 AlarmKit 또는 M2 알림)
+      const backend = await scheduleDailyAlarm(hour, minute);
       setScheduledLabel(formatTime(hour, minute));
 
+      // 진짜 알람은 무음/DND 관통을 안내, M2 알림 fallback은 Android 정확 알람 주의를 안내.
+      const backendNote =
+        backend === 'alarmkit'
+          ? '\n\n무음·방해금지 모드에서도 알람처럼 확실히 울려요.'
+          : '';
       const exactNote =
-        Platform.OS === 'android'
+        backend === 'notification' && Platform.OS === 'android'
           ? '\n\n(안드로이드 14 이상에서 "정확한 알람" 권한이 꺼져 있으면 시각이 최대 1시간까지 늦어질 수 있어요.)'
           : '';
       const micNote = micOk
@@ -110,7 +119,7 @@ export default function SettingsScreen() {
         : '\n\n마이크 권한이 아직 허용되지 않았어요. 아침 대화 시작 시 권한 팝업이 뜰 수 있습니다.';
       Alert.alert(
         '알림을 맞췄어요 🐦',
-        `매일 ${formatTime(hour, minute)}에 까치가 깨워줄게요.${micNote}${exactNote}`,
+        `매일 ${formatTime(hour, minute)}에 까치가 깨워줄게요.${backendNote}${micNote}${exactNote}`,
       );
     } catch (e) {
       Alert.alert('문제가 발생했어요', String(e));
@@ -123,7 +132,7 @@ export default function SettingsScreen() {
     if (busy) return;
     setBusy(true);
     try {
-      await cancelReminders();
+      await cancelAllScheduled();
       setScheduledLabel(null);
       Alert.alert('알림을 껐어요', '아침 알림 예약이 해제되었습니다.');
     } catch (e) {
